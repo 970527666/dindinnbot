@@ -1,5 +1,15 @@
 import os
 import sys
+
+# Ensure Windows DLLs directory is in path for OpenSSL
+try:
+    dll_dir = os.path.join(os.path.dirname(sys.executable), "DLLs")
+    if os.path.exists(dll_dir) and hasattr(os, "add_dll_directory"):
+        os.add_dll_directory(dll_dir)
+    os.environ["PATH"] = dll_dir + os.pathsep + os.path.dirname(sys.executable) + os.pathsep + os.environ.get("PATH", "")
+except Exception:
+    pass
+
 import json
 import time
 import uuid
@@ -299,35 +309,37 @@ async def cmd_event(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     event_mode = not event_mode
-    status_str = "🟢 **已开启【活动/抽奖保护模式】**（期间突增流量不弹警报，绝不影响活动）" if event_mode else "🔴 **已恢复【日常防刷巡逻模式】**（异常刷粉将立即报警）"
-    await update.message.reply_text(status_str, parse_mode="Markdown")
+    status_str = "🟢 已开启【活动/抽奖保护模式】（期间突增流量不弹警报，绝不影响活动）" if event_mode else "🔴 已恢复【日常防刷巡逻模式】（异常刷粉将立即报警）"
+    await update.message.reply_text(status_str)
 
 async def cmd_status(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id != ADMIN_ID:
         return
 
     schedules = load_schedules()
+    mode_str = "🟢 活动免扰（抽奖中）" if event_mode else "🔴 防刷守护中"
     status_text = (
-        f"🤖 **Caryn 守护机器人运行正常**\n\n"
-        f"**频道:** `Caryn Fans Club` (`{CHANNEL_ID}`)\n"
-        f"**当前模式:** {'🟢 活动免扰' if event_mode else '🔴 防刷守护'}\n"
-        f"**待发排程:** {len(schedules)} 条\n"
-        f"**时区:** {TIMEZONE_STR}"
+        "🤖 Caryn 守护机器人运行正常\n\n"
+        f"📌 监控频道: Caryn Fans Club ({CHANNEL_ID})\n"
+        f"🛡️ 当前状态: {mode_str}\n"
+        f"📅 待发排程: {len(schedules)} 条\n"
+        f"⏰ 运行服务器: 本地静默常驻 (24/7)"
     )
-    await update.message.reply_text(status_text, parse_mode="Markdown")
+    await update.message.reply_text(status_text, parse_mode=None)
 
 async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    logger.info(f"收到 /start 命令，来自用户: {update.effective_user.id} (管理员是: {ADMIN_ID})")
     if update.effective_user.id != ADMIN_ID:
+        logger.warning(f"非管理员访问: {update.effective_user.id}")
         return
     await update.message.reply_text(
-        "👋 你好！我是 **Caryn Fans Club 守护机器人**。\n\n"
-        "**核心功能指令：**\n"
-        "📅 `/schedule 2026-11-08 18:00 文案` - 排行程发帖\n"
-        "📋 `/list` - 查看待发送的任务列表\n"
-        "❌ `/cancel <ID>` - 取消指定任务\n"
-        "🎉 `/event` - 切换活动模式（抽奖期间开启，避免误报）\n"
-        "📊 `/status` - 查看当前守护状态",
-        parse_mode="Markdown"
+        "👋 你好！我是 Caryn Fans Club 守护机器人。\n\n"
+        "核心功能指令：\n"
+        "📅 /schedule 2026-11-08 18:00 文案 - 排行程发帖\n"
+        "📋 /list - 查看待发送的任务列表\n"
+        "❌ /cancel <ID> - 取消指定任务\n"
+        "🎉 /event - 切换活动模式（抽奖期间开启，避免误报）\n"
+        "📊 /status - 查看当前守护状态"
     )
 
 # ----------------- 后台定时发帖轮询 -----------------
@@ -390,7 +402,7 @@ def main():
     app.post_init = on_startup
 
     logger.info("Bot 正在启动监听...")
-    app.run_polling(allowed_updates=["message", "chat_member", "callback_query"])
+    app.run_polling(allowed_updates=Update.ALL_TYPES)
 
 if __name__ == "__main__":
     main()

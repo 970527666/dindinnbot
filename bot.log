@@ -1,0 +1,15 @@
+Traceback (most recent call last):
+  File "C:\Users\Administrator\.gemini\antigravity\scratch\dindinnbot\bot.py", line 29, in <module>
+    from telegram.ext import (
+    ...<7 lines>...
+    )
+  File "C:\Users\Administrator\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\telegram\ext\__init__.py", line 70, in <module>
+    from ._application import Application, ApplicationHandlerStop
+  File "C:\Users\Administrator\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\telegram\ext\_application.py", line 53, in <module>
+    from telegram.ext._updater import Updater
+  File "C:\Users\Administrator\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\telegram\ext\_updater.py", line 24, in <module>
+    import ssl
+  File "C:\Users\Administrator\AppData\Local\Python\pythoncore-3.14-64\Lib\ssl.py", line 100, in <module>
+    import _ssl             # if we can't import it, let the error propagate
+    ^^^^^^^^^^^
+ImportError: DLL load failed while importing _ssl: An internal error occurred.

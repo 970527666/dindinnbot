@@ -1,0 +1,25 @@
+# Render service definition for Caryn Guard Bot
+# This file tells Render how to build and run the bot.
+# Place it in the project root and push the repo to GitHub.
+# Render will automatically detect this file.
+
+services:
+  - type: web
+    name: carynbot
+    env: docker
+    plan: free
+    dockerfilePath: Dockerfile
+    # Use environment variables for secrets
+    envVars:
+      - key: BOT_TOKEN
+        sync: false
+      - key: CHANNEL_ID
+        sync: false
+      - key: ADMIN_ID
+        sync: false
+      - key: TIMEZONE
+        sync: false
+    autoDeploy: true
+    healthCheckPath: /health
+    # Render expects the container to listen on $PORT, but our bot doesn't expose a web server.
+    # We'll expose a dummy health endpoint via a tiny Flask app.
