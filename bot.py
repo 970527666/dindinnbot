@@ -15,6 +15,7 @@ import time
 import uuid
 import logging
 import asyncio
+import urllib.request
 from datetime import datetime
 from collections import deque
 import pytz
@@ -47,6 +48,22 @@ BURST_SECONDS = 3
 BURST_THRESHOLD = 5
 
 SCHEDULE_FILE = "schedules.json"
+
+# ----------------- CAS 反垃圾账号查询 -----------------
+def check_cas(user_id: int) -> bool:
+    """
+    查询 CAS (Combot Anti-Spam) 数据库。
+    返回 True 表示该账号是已知垃圾/僵尸号，应立即封禁。
+    API 文档：https://cas.chat/
+    """
+    try:
+        url = f"https://api.cas.chat/check?user_id={user_id}"
+        with urllib.request.urlopen(url, timeout=5) as resp:
+            data = json.loads(resp.read().decode())
+            return data.get("ok", False)  # ok=true 表示该用户在 CAS 黑名单
+    except Exception as e:
+        logger.warning(f"CAS 查询失败 (user_id={user_id}): {e}")
+        return False  # 查询失败时不误伤，放行
 
 # 日志设置
 logging.basicConfig(
@@ -110,6 +127,23 @@ async def track_joins(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "username": user.username or "无用户名",
         "time": now
     }
+
+    # ---- CAS 垃圾账号自动封禁 ----
+    if check_cas(user.id):
+        try:
+            await context.bot.ban_chat_member(chat_id=CHANNEL_ID, user_id=user.id)
+            logger.info(f"CAS 自动封禁: {user.first_name} (@{user.username}) [ID: {user.id}]")
+            await context.bot.send_message(
+                chat_id=ADMIN_ID,
+                text=(
+                    f"🤖 CAS 自动封禁\n\n"
+                    f"用户 {user.first_name} (@{user.username or '无'}) [ID: {user.id}]\n"
+                    f"已在 CAS 全球垃圾账号数据库中有案底，已自动封禁！"
+                )
+            )
+        except Exception as e:
+            logger.error(f"CAS 自动封禁失败: {e}")
+        return  # 直接返回，不再走刷粉检测逻辑
 
     recent_joins.append(user_info)
 
