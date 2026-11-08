@@ -1,6 +1,15 @@
 import os
 import sys
 
+# Ensure stderr/stdout write to file in background/pythonw
+err_log_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "bot_error.log")
+try:
+    log_fp = open(err_log_path, "a", encoding="utf-8", buffering=1)
+    sys.stderr = log_fp
+    sys.stdout = log_fp
+except Exception:
+    pass
+
 # Ensure Windows DLLs directory is in path for OpenSSL
 try:
     dll_dir = os.path.join(os.path.dirname(sys.executable), "DLLs")
@@ -38,7 +47,7 @@ from telegram.ext import (
 )
 
 # ----------------- 配置信息 -----------------
-BOT_TOKEN = os.getenv("BOT_TOKEN", "9218776179:AAGD7K1hhvY8xVrtioz-hsP0ZuXjoDkAzjo")
+BOT_TOKEN = os.getenv("BOT_TOKEN", "9217615822:AAHxRJMApRIsIdhkHPIB4hYsjHs_I09CKkI")
 CHANNEL_ID = int(os.getenv("CHANNEL_ID", "-1004333341021")) # Caryn Fans Club
 ADMIN_ID = int(os.getenv("ADMIN_ID", "7874516641"))          # 管理员 dinasour👀
 TIMEZONE_STR = os.getenv("TIMEZONE", "Asia/Kuala_Lumpur")   # 时区 GMT+8
@@ -65,10 +74,13 @@ def check_cas(user_id: int) -> bool:
         logger.warning(f"CAS 查询失败 (user_id={user_id}): {e}")
         return False  # 查询失败时不误伤，放行
 
-# 日志设置
+# 日志设置（同时写入文件，兼容 pythonw 静默模式）
+LOG_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "bot.log")
 logging.basicConfig(
+    filename=LOG_FILE,
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-    level=logging.INFO
+    level=logging.INFO,
+    encoding="utf-8"
 )
 logger = logging.getLogger("CarynGuardBot")
 
@@ -413,30 +425,41 @@ async def scheduler_worker(app):
 
 # ----------------- 主程序入口 -----------------
 def main():
-    app = ApplicationBuilder().token(BOT_TOKEN).build()
+    if sys.platform == "win32":
+        try:
+            asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+        except Exception:
+            pass
 
-    # 注册命令
-    app.add_handler(CommandHandler("start", cmd_start))
-    app.add_handler(CommandHandler("schedule", cmd_schedule))
-    app.add_handler(CommandHandler("list", cmd_list))
-    app.add_handler(CommandHandler("cancel", cmd_cancel))
-    app.add_handler(CommandHandler("event", cmd_event))
-    app.add_handler(CommandHandler("status", cmd_status))
+    while True:
+        try:
+            app = ApplicationBuilder().token(BOT_TOKEN).build()
 
-    # 监听进群
-    app.add_handler(ChatMemberHandler(track_joins, ChatMemberHandler.CHAT_MEMBER))
+            # 注册命令
+            app.add_handler(CommandHandler("start", cmd_start))
+            app.add_handler(CommandHandler("schedule", cmd_schedule))
+            app.add_handler(CommandHandler("list", cmd_list))
+            app.add_handler(CommandHandler("cancel", cmd_cancel))
+            app.add_handler(CommandHandler("event", cmd_event))
+            app.add_handler(CommandHandler("status", cmd_status))
 
-    # 监听按钮回调
-    app.add_handler(CallbackQueryHandler(handle_callback))
+            # 监听进群
+            app.add_handler(ChatMemberHandler(track_joins, ChatMemberHandler.CHAT_MEMBER))
 
-    # 启动后台任务调度器
-    async def on_startup(application):
-        asyncio.create_task(scheduler_worker(application))
+            # 监听按钮回调
+            app.add_handler(CallbackQueryHandler(handle_callback))
 
-    app.post_init = on_startup
+            # 启动后台任务调度器
+            async def on_startup(application):
+                asyncio.create_task(scheduler_worker(application))
 
-    logger.info("Bot 正在启动监听...")
-    app.run_polling(allowed_updates=Update.ALL_TYPES)
+            app.post_init = on_startup
+
+            logger.info("Bot 正在启动监听...")
+            app.run_polling(allowed_updates=Update.ALL_TYPES, stop_signals=None)
+        except Exception as e:
+            logger.error(f"Bot 轮询异常: {e}，将在 5 秒后自动重试并拉起...")
+            time.sleep(5)
 
 if __name__ == "__main__":
     main()
